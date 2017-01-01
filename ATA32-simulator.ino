@@ -3,11 +3,12 @@
    Purpose: F27 Friendship Landing Gear Simulator
 
    Author:  MBUR
+   Github:  https://github.com/MartijnvdB/ATA32-simulator
    Date:    started Dec 2016
 
    uses SPI for interfacing with MBI5168 LED driver.
-   uses Fsm to implement a finite state machine.
-   Based on arduino-fsm 2.2.0 with pull request #5 9https://github.com/jonblack/arduino-fsm/pull/5)
+   uses arduino-fsm to implement a finite state machine.
+    Based on arduino-fsm 2.2.0 with pull request #5 9https://github.com/jonblack/arduino-fsm/pull/5)
 
 */
 

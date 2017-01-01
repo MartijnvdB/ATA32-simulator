@@ -1,0 +1,26 @@
+#######################################
+# Syntax Coloring Map For LandingGearSwitches
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+LandingGearSwitches	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+update		KEYWORD2
+gndflt_state	KEYWORD2
+maindc_state	KEYWORD2
+essdc_state	KEYWORD2
+air_state	KEYWORD2
+lglever_state	KEYWORD2
+lgovrd_state	KEYWORD2
+lg_altndn_state	KEYWORD2
+
+#######################################
+# Constants (LITERAL1)
+#######################################

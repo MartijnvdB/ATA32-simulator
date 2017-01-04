@@ -19,6 +19,11 @@
 #include <Fsm.h>
 #include "LandingGearSwitches/LandingGearSwitches.h"
 
+// Timer library from https://github.com/JChristensen/Timer.
+#include <Event.h>
+#include <Timer.h>
+
+
 
 /* MBI5168 related pins */
 #define OE_PIN 9       // connected to MBI5168 OE, note: is PWM pin

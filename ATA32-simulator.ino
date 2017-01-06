@@ -47,10 +47,10 @@
 
 
 #define NUM_LEDS 7 // Used in POST routine
-#define LOCK_UNLOCK_TIME_MSEC 750 // estimated time req'd to unlock up/downlock
-#define GEAR_EXTEND_TIME_MSEC 4000  // time for gear extension
-#define GEAR_RETRACT_TIME_MSEC 2000 // time for gear retraction
-#define GEAR_ALTNDN_TIME_MSEC 5000  // time for gear alternate down
+#define LOCK_UNLOCK_TIME_MSEC 1000 // estimated time req'd to unlock up/downlock
+#define GEAR_EXTEND_TIME_MSEC 5000  // time for gear extension
+#define GEAR_RETRACT_TIME_MSEC 3000 // time for gear retraction
+#define GEAR_ALTNDN_TIME_MSEC 6000  // time for gear alternate down
 #define GEAR_UP_TIME_DIFF_FACTOR 0.9
 #define GEAR_DN_TIME_DIFF_FACTOR 0.9
 

@@ -8,7 +8,7 @@
 
    uses SPI for interfacing with MBI5168 LED driver.
    uses arduino-fsm to implement a finite state machine.
-    Based on arduino-fsm 2.2.0 with pull request #5 9https://github.com/jonblack/arduino-fsm/pull/5)
+   Based on arduino-fsm 2.2.0 with pull request #5 9https://github.com/jonblack/arduino-fsm/pull/5)
 
 */
 
@@ -48,16 +48,17 @@
 
 #define NUM_LEDS 7 // Used in POST routine
 #define LOCK_UNLOCK_TIME_MSEC 750 // estimated time req'd to unlock up/downlock
-#define GEAR_EXTEND_TIME_SEC 4  // time for gear extension
-#define GEAR_RETRACT_TIME_SEC 2 // time for gear retraction
-#define GEAR_ALTNDN_TIME_SEC 5  // time for gear alternate down
-
+#define GEAR_EXTEND_TIME_MSEC 4000  // time for gear extension
+#define GEAR_RETRACT_TIME_MSEC 2000 // time for gear retraction
+#define GEAR_ALTNDN_TIME_MSEC 5000  // time for gear alternate down
+#define GEAR_UP_TIME_DIFF_FACTOR 0.9
+#define GEAR_DN_TIME_DIFF_FACTOR 0.9
 
 /* SPI address - for LEDs and solenoid - is sent to MBI5168.
- * bit 0-2: red LEDs
- * bit 3-6: green LEDs
- * bit 7: solenoid (not controlled by MBI5168 - too much current)
- */
+   bit 0-2: red LEDs
+   bit 3-6: green LEDs
+   bit 7: solenoid (not controlled by MBI5168 - too much current)
+*/
 byte address = B00000000;
 
 
@@ -84,9 +85,18 @@ State state_unlock_dnlock(&on_unlock_dnlock_enter, &on_unlock_dnlock_exit);
 State state_transit_up(&on_transit_up_enter, &on_transit_up_exit);
 State state_up(&on_lock_uplock_enter, &on_lock_uplock_exit);
 State state_unlock_uplock(&on_unlock_uplock_enter, &on_unlock_uplock_exit);
-State state_transit_dn(&on_transit_dn_enter, &on_transit_dn_enter);
+State state_transit_dn(&on_transit_dn_enter, &on_transit_dn_exit);
 State state_altn_unlock_uplock(&on_altn_unlock_uplock_enter, &on_altn_unlock_uplock_exit);
 State state_altn_transit_down(&on_altn_transit_down_enter, &on_altn_transit_down_exit);
+
+
+/* Timer objects are used to be able to make each gear go up/down in their own time. */
+Timer mlg_left;
+Timer mlg_right;
+Timer nlg;
+
+int mlg_left_timerid, mlg_right_timerid, nlg_timerid;  //
+
 
 
 /*
@@ -100,37 +110,82 @@ void on_power_off_exit() {
 }
 
 void on_gnd_powered_on_enter() {
-  //  release_solenoid, lights on
-  address = B01111000;
+  address = B01111000;  //  release_solenoid, green LEDs on
 }
 void on_gnd_powered_on_exit() {}
 
 void on_dnlocked_flt_enter() {
-  // retract solenoid, lights on
-  address = B11111000;
+  address = B11111000;   // retract solenoid, lights on
 }
 void on_dnlocked_flt_exit() {}
 
-void on_unlock_dnlock_enter() {}
+
+
+/* In the transit up/down states we launch three timers with random times for the LEDs,
+ *  to simulate different up rate/uplock times for the three gears, which should 
+ *  make it more realistic.
+ *  
+ *  This sort of decouples the illumination of the LEDs from the state of the FSM.
+ *  Perhaps not in the spirit of a FSM, but the alternative would be to make separate
+ *  states for each gear.
+ *  
+ *  Note: the /transit time/ and the LED indicator timer use the same time definition
+ *  (e.g. GEAR_RETRACT_TIME_MSEC) but they occur one after the other in loop(). This could
+ *  theoretically cause a race condition (LED state != FSM state, for some microseconds
+ *  inside the loop()).
+*/
+
+void on_unlock_dnlock_enter() {
+  mlg_left_timerid = mlg_left.after(random(GEAR_UP_TIME_DIFF_FACTOR * LOCK_UNLOCK_TIME_MSEC, LOCK_UNLOCK_TIME_MSEC), show_mlg_left_is_unlocked );  // last arg. is callback to execute
+  mlg_right_timerid = mlg_right.after(random(GEAR_UP_TIME_DIFF_FACTOR * LOCK_UNLOCK_TIME_MSEC, LOCK_UNLOCK_TIME_MSEC), show_mlg_right_is_unlocked );
+  nlg_timerid = nlg.after(random(GEAR_UP_TIME_DIFF_FACTOR * LOCK_UNLOCK_TIME_MSEC, LOCK_UNLOCK_TIME_MSEC), show_nlg_is_unlocked );
+}
 void on_unlock_dnlock_exit() {
-  address = B00000111;
+  // stop the timers in case LG is selected down before it got up
+  mlg_left.stop(mlg_left_timerid);
+  mlg_right.stop(mlg_right_timerid);
+  nlg.stop(nlg_timerid);
 }
 
-void on_transit_up_enter() {}
-void on_transit_up_exit() {}
-
-void on_lock_uplock_enter() {
-  address = B00000000;
+void on_transit_up_enter() {
+  mlg_left_timerid = mlg_left.after(random(GEAR_UP_TIME_DIFF_FACTOR * GEAR_RETRACT_TIME_MSEC, GEAR_RETRACT_TIME_MSEC), show_mlg_left_is_up );  // last arg. is callback to execute
+  mlg_right_timerid = mlg_right.after(random(GEAR_UP_TIME_DIFF_FACTOR * GEAR_RETRACT_TIME_MSEC, GEAR_RETRACT_TIME_MSEC), show_mlg_right_is_up );
+  nlg_timerid = nlg.after(random(GEAR_UP_TIME_DIFF_FACTOR * GEAR_RETRACT_TIME_MSEC, GEAR_RETRACT_TIME_MSEC), show_nlg_is_up );
 }
+void on_transit_up_exit() {
+  // stop the timers in case LG is selected down before it got up
+  mlg_left.stop(mlg_left_timerid);
+  mlg_right.stop(mlg_right_timerid);
+  nlg.stop(nlg_timerid);
+}
+
+void on_lock_uplock_enter() {}
 void on_lock_uplock_exit() {}
 
-void on_unlock_uplock_enter() {}
+void on_unlock_uplock_enter() {
+  mlg_left_timerid = mlg_left.after(random(GEAR_DN_TIME_DIFF_FACTOR * LOCK_UNLOCK_TIME_MSEC, LOCK_UNLOCK_TIME_MSEC), show_mlg_left_is_unlocked );  // last arg. is callback to execute
+  mlg_right_timerid = mlg_right.after(random(GEAR_DN_TIME_DIFF_FACTOR * LOCK_UNLOCK_TIME_MSEC, LOCK_UNLOCK_TIME_MSEC), show_mlg_right_is_unlocked );
+  nlg_timerid = nlg.after(random(GEAR_DN_TIME_DIFF_FACTOR * LOCK_UNLOCK_TIME_MSEC, LOCK_UNLOCK_TIME_MSEC), show_nlg_is_unlocked );
+}
 void on_unlock_uplock_exit() {
-  address = B10000111;
+  // stop the timers in case LG is selected up before it got down
+  mlg_left.stop(mlg_left_timerid);
+  mlg_right.stop(mlg_right_timerid);
+  nlg.stop(nlg_timerid);
+  address |= B10000000;  // retract solenoid
 }
 
-void on_transit_dn_enter() {}
-void on_transit_dn_exit() {}
+void on_transit_dn_enter() {
+  mlg_left.after(random(GEAR_DN_TIME_DIFF_FACTOR * GEAR_EXTEND_TIME_MSEC, GEAR_EXTEND_TIME_MSEC), show_mlg_left_is_dn );  // last arg. is callback to execute
+  mlg_right.after(random(GEAR_DN_TIME_DIFF_FACTOR * GEAR_EXTEND_TIME_MSEC, GEAR_EXTEND_TIME_MSEC), show_mlg_right_is_dn );
+  nlg.after(random(GEAR_DN_TIME_DIFF_FACTOR * GEAR_EXTEND_TIME_MSEC, GEAR_EXTEND_TIME_MSEC), show_nlg_is_dn );
+}
+void on_transit_dn_exit() {
+  // stop the timers in case LG is selected up before it got down
+  mlg_left.stop(mlg_left_timerid);
+  mlg_right.stop(mlg_right_timerid);
+  nlg.stop(nlg_timerid);
+}
 
 void on_altn_unlock_uplock_enter() {}
 void on_altn_unlock_uplock_exit() {
@@ -175,8 +230,11 @@ void poweronselftest() {
 //void on_trans_gear_up() {}
 
 
+
 Fsm fsm(&state_gnd_powered_off);
 LandingGearSwitches LG(MPLEX_SELECT_PIN_A, MPLEX_SELECT_PIN_B, MPLEX_SELECT_PIN_C, MPLEX_READ_PIN);
+
+
 
 
 /* Other functions */
@@ -204,6 +262,48 @@ void update_peripherals(int address) {
 } // update_peripherals
 
 
+
+/* Functions that set the right SPI address for controlling the LEDs.
+    More readable than having them in the code.
+*/
+void show_mlg_left_is_up() {
+  address &= B01011110;  // release solenoid
+}
+void show_mlg_left_is_unlocked() {
+  address &= B11011111; // green off
+  address |= B10000001; // red on, retract solenoid
+}
+void show_mlg_left_is_dn() {
+  address |= B00100000; // green on
+  address &= B11111110; // red off
+}
+void show_mlg_right_is_up() {
+  address &= B11110011;
+}
+void show_mlg_right_is_unlocked() {
+  address &= B11110111; // green off
+  address |= B00000100; // red on
+}
+void show_mlg_right_is_dn() {
+  address |= B00001000; // green on
+  address &= B11111011; // red off
+}
+void show_nlg_is_up() {
+  address &= B10101101;
+}
+void show_nlg_is_unlocked() {
+  address &= B10101111; // green off
+  address |= B00000010; // red on
+}
+void show_nlg_is_dn() {
+  address |= B01010000; // green on
+  address &= B11111101; // red off
+}
+
+
+
+
+
 void setup() {
   pinMode(SOLENOID_PIN, OUTPUT);
   pinMode(LE_PIN,  OUTPUT);
@@ -225,12 +325,12 @@ void setup() {
   // gear up
   fsm.add_transition(&state_dnlocked_flt, &state_unlock_dnlock, GEAR_UP, NULL);
   fsm.add_timed_transition(&state_unlock_dnlock, &state_transit_up, LOCK_UNLOCK_TIME_MSEC, NULL);
-  fsm.add_timed_transition(&state_transit_up, &state_up, GEAR_RETRACT_TIME_SEC * 1000, NULL); //&on_trans_gear_up);
+  fsm.add_timed_transition(&state_transit_up, &state_up, GEAR_RETRACT_TIME_MSEC, NULL); //&on_trans_gear_up);
 
   // gear down
   fsm.add_transition(&state_up, &state_unlock_uplock, GEAR_DOWN_NORM, NULL); //&on_trans_gear_up);
   fsm.add_timed_transition(&state_unlock_uplock, &state_transit_dn, LOCK_UNLOCK_TIME_MSEC, NULL);
-  fsm.add_timed_transition(&state_transit_dn, &state_dnlocked_flt, GEAR_EXTEND_TIME_SEC * 1000, NULL); //&on_trans_gear_up);
+  fsm.add_timed_transition(&state_transit_dn, &state_dnlocked_flt, GEAR_EXTEND_TIME_MSEC, NULL); //&on_trans_gear_up);
 
   // gear up while in transit down
   fsm.add_transition(&state_transit_dn, &state_transit_up, GEAR_UP, NULL);
@@ -247,7 +347,7 @@ void setup() {
   // alternate down
   fsm.add_transition(&state_up, &state_altn_unlock_uplock, GEAR_DOWN_ALTN, NULL);
   fsm.add_timed_transition(&state_altn_unlock_uplock, &state_altn_transit_down, LOCK_UNLOCK_TIME_MSEC, NULL);
-  fsm.add_timed_transition(&state_altn_transit_down, &state_dnlocked_flt, GEAR_EXTEND_TIME_SEC * 1000, NULL);
+  fsm.add_timed_transition(&state_altn_transit_down, &state_dnlocked_flt, GEAR_EXTEND_TIME_MSEC * 1000, NULL);
 
   address = B00000000;  // all LEDs and solenoid OFF
 
@@ -256,7 +356,7 @@ void setup() {
 
 void loop() {
   LG.update();  // gets/stores all switch states
-  
+
   if (LG.maindc_state() && LG.essdc_state() && LG.air_state()) {
     fsm.trigger(POWER_ON);
   }
@@ -269,7 +369,7 @@ void loop() {
   if (! LG.gndflt_state()) {
     fsm.trigger(TOUCH_DOWN);
   }
-  // GEAR UP/DN now assumes that an 'alternate gear down' dumps all pneumatics
+  /* GEAR UP/DN now assumes that an 'alternate gear down' dumps all pneumatics. */
   if (LG.lglever_state() && LG.air_state() && LG.lg_altndn_state() ) {
     fsm.trigger(GEAR_UP);
   }
@@ -280,10 +380,18 @@ void loop() {
     fsm.trigger(GEAR_DOWN_ALTN);
   }
 
+  /* Update FSM timer-based transitions */
   fsm.check_timer();
 
-  // update LED and solenoid 'status'
+  /* The global variable 'address' is manipulated in the various states.
+   * Here in loop() it controls the LEDs and solenoid.
+   */
   update_peripherals(address);
+
+  /* Update landing gear up/down timers. */
+  mlg_left.update();
+  mlg_right.update();
+  nlg.update();
 
 } // loop
 

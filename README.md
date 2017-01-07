@@ -10,20 +10,21 @@ This software is probably of little use to anyone else because it depends on har
 * ground/flight switch
 * electrical busses switches
 * pneumatics switch
-* landing gear controls
-* status indicatino LEDs
+* landing gear controls (normal, override, alternate)
+* status indication LEDs
 
 However, if you're interested, here is how to install it:
 
 * Install the libraries that this software depends on:
   - SPI
   - arduino-fsm (https://github.com/jonblack/arduino-fsm)
+  - Timer (https://github.com/JChristensen/Timer)
 * Download the software into your sketches folder
 * Open the software in the Arduino GUI and compile it.
 
 ## Developing
 
-No outside help is currently needed but suggestions are welcome.
+No outside help is currently needed.
 
 ### Building
 
@@ -33,15 +34,19 @@ Build and upload the software using the Arduino GUI.
 
 This project inmplements a simplified landing gear system using a finite state machine. It interacts with the 'airplane' and the 'pilot' using a couple of electrical swithes, a solenoid and status LEDs.
 
-Only a 'happy' flow is currently implemented:
+This part of the 'happy' flow is currently implemented:
 * power on/off
 * lift off/touch down
 * normal gear up
 * normal gear down
 * alternate gear down
 
-Future implementations should allow for an 'instructor' to set specific failure conditions. For example:
-* electrical power failures
+This part of the exception flow is currently implemented in a static way (i.e. absence of power *before* changing states,
+not *while* changing states:
+* electrical bus failure
+* pneumatics
+
+Future implementations should allow for an 'instructor' to set specific failure conditions dynamically and during state transitions. For example:
 * pneumatic failures
 * mechanical failures
 

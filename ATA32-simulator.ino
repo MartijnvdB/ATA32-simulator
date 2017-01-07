@@ -115,7 +115,7 @@ void on_gnd_powered_on_enter() {
 void on_gnd_powered_on_exit() {}
 
 void on_dnlocked_flt_enter() {
-  address = B11111000;   // retract solenoid, lights on
+  address |= B10000000;   // touch down. retract solenoid
 }
 void on_dnlocked_flt_exit() {}
 

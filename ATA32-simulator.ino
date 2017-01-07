@@ -159,7 +159,9 @@ void on_transit_up_exit() {
   nlg.stop(nlg_timerid);
 }
 
-void on_lock_uplock_enter() {}
+void on_lock_uplock_enter() {
+  address &= B01111111; // retract solenoid
+}
 void on_lock_uplock_exit() {}
 
 void on_unlock_uplock_enter() {
@@ -339,10 +341,14 @@ void setup() {
   fsm.add_timed_transition(&state_transit_dn, &state_dnlocked_flt, GEAR_EXTEND_TIME_MSEC, NULL); //&on_trans_gear_up);
 
   // gear up while in transit down
+
+  // VVVVVVV
+  fsm.add_transition(&state_unlock_uplock, &state_up, GEAR_UP, NULL); // while unlocking
   fsm.add_transition(&state_transit_dn, &state_transit_up, GEAR_UP, NULL);
 
   // gear down while in transit up
-  fsm.add_transition(&state_transit_up, &state_transit_dn, GEAR_DOWN_NORM, NULL);
+  fsm.add_transition(&state_unlock_dnlock, &state_dnlocked_flt, GEAR_DOWN_NORM, NULL); // while unlocking
+  fsm.add_transition(&state_transit_up, &state_transit_dn, GEAR_DOWN_NORM, NULL); // while moving
 
   // touch down
   fsm.add_transition(&state_dnlocked_flt, &state_gnd_powered_on, TOUCH_DOWN, NULL);

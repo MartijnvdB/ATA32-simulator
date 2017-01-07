@@ -55,8 +55,8 @@
 #define GEAR_DN_TIME_DIFF_FACTOR 0.9
 
 /* SPI address - for LEDs and solenoid - is sent to MBI5168.
-   bit 0-2: red LEDs
-   bit 3-6: green LEDs
+   bit 0-2: red LEDs, left to right
+   bit 3-6: green LEDs, right to left, top
    bit 7: solenoid (not controlled by MBI5168 - too much current)
 */
 byte address = B00000000;
@@ -95,7 +95,7 @@ Timer mlg_left;
 Timer mlg_right;
 Timer nlg;
 
-int mlg_left_timerid, mlg_right_timerid, nlg_timerid;  //
+int mlg_left_timerid, mlg_right_timerid, nlg_timerid;  // timer event IDs
 
 
 
@@ -122,17 +122,17 @@ void on_dnlocked_flt_exit() {}
 
 
 /* In the transit up/down states we launch three timers with random times for the LEDs,
- *  to simulate different up rate/uplock times for the three gears, which should 
- *  make it more realistic.
- *  
- *  This sort of decouples the illumination of the LEDs from the state of the FSM.
- *  Perhaps not in the spirit of a FSM, but the alternative would be to make separate
- *  states for each gear.
- *  
- *  Note: the /transit time/ and the LED indicator timer use the same time definition
- *  (e.g. GEAR_RETRACT_TIME_MSEC) but they occur one after the other in loop(). This could
- *  theoretically cause a race condition (LED state != FSM state, for some microseconds
- *  inside the loop()).
+    to simulate different up rate/uplock times for the three gears, which should
+    make it more realistic.
+
+    This sort of decouples the illumination of the LEDs from the state of the FSM.
+    Perhaps not in the spirit of a FSM, but the alternative would be to make separate
+    states for each gear.
+
+    Note: the /transit time/ and the LED indicator timer use the same time definition
+    (e.g. GEAR_RETRACT_TIME_MSEC) but they occur one after the other in loop(). This could
+    theoretically cause a race condition (LED state != FSM state, for some microseconds
+    inside the loop()).
 */
 
 void on_unlock_dnlock_enter() {
@@ -187,12 +187,18 @@ void on_transit_dn_exit() {
   nlg.stop(nlg_timerid);
 }
 
-void on_altn_unlock_uplock_enter() {}
-void on_altn_unlock_uplock_exit() {
-  address = B00000111;
+void on_altn_unlock_uplock_enter() {
+  mlg_left_timerid = mlg_left.after(random(GEAR_DN_TIME_DIFF_FACTOR * LOCK_UNLOCK_TIME_MSEC, LOCK_UNLOCK_TIME_MSEC), show_mlg_left_is_unlocked );  // last arg. is callback to execute
+  mlg_right_timerid = mlg_right.after(random(GEAR_DN_TIME_DIFF_FACTOR * LOCK_UNLOCK_TIME_MSEC, LOCK_UNLOCK_TIME_MSEC), show_mlg_right_is_unlocked );
+  nlg_timerid = nlg.after(random(GEAR_DN_TIME_DIFF_FACTOR * LOCK_UNLOCK_TIME_MSEC, LOCK_UNLOCK_TIME_MSEC), show_nlg_is_unlocked );
 }
+void on_altn_unlock_uplock_exit() {}
 
-void on_altn_transit_down_enter() {}
+void on_altn_transit_down_enter() {
+  mlg_left.after(random(GEAR_DN_TIME_DIFF_FACTOR * GEAR_ALTNDN_TIME_MSEC, GEAR_ALTNDN_TIME_MSEC), show_mlg_left_is_dn );  // last arg. is callback to execute
+  mlg_right.after(random(GEAR_DN_TIME_DIFF_FACTOR * GEAR_ALTNDN_TIME_MSEC, GEAR_ALTNDN_TIME_MSEC), show_mlg_right_is_dn );
+  nlg.after(random(GEAR_DN_TIME_DIFF_FACTOR * GEAR_ALTNDN_TIME_MSEC, GEAR_ALTNDN_TIME_MSEC), show_nlg_is_dn );
+}
 void on_altn_transit_down_exit() {}
 
 
@@ -384,8 +390,8 @@ void loop() {
   fsm.check_timer();
 
   /* The global variable 'address' is manipulated in the various states.
-   * Here in loop() it controls the LEDs and solenoid.
-   */
+     Here in loop() it controls the LEDs and solenoid.
+  */
   update_peripherals(address);
 
   /* Update landing gear up/down timers. */

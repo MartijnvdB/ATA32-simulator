@@ -60,7 +60,7 @@
    bit 7: solenoid (not controlled by MBI5168 - too much current)
 */
 byte address = B00000000;
-
+byte prev_address = address;
 
 // State transition events
 #define POWER_ON 10
@@ -341,8 +341,6 @@ void setup() {
   fsm.add_timed_transition(&state_transit_dn, &state_dnlocked_flt, GEAR_EXTEND_TIME_MSEC, NULL); //&on_trans_gear_up);
 
   // gear up while in transit down
-
-  // VVVVVVV
   fsm.add_transition(&state_unlock_uplock, &state_up, GEAR_UP, NULL); // while unlocking
   fsm.add_transition(&state_transit_dn, &state_transit_up, GEAR_UP, NULL);
 
@@ -352,8 +350,8 @@ void setup() {
 
   // touch down
   fsm.add_transition(&state_dnlocked_flt, &state_gnd_powered_on, TOUCH_DOWN, NULL);
-  // power off
 
+  // power off
   fsm.add_transition(&state_gnd_powered_on, &state_gnd_powered_off, POWER_OFF, NULL);
 
   // alternate down
@@ -367,8 +365,6 @@ void setup() {
 
 
 void loop() {
-  LG.update();  // gets/stores all switch states
-
   if (LG.maindc_state() && LG.essdc_state() && LG.air_state()) {
     fsm.trigger(POWER_ON);
   }
@@ -388,9 +384,11 @@ void loop() {
   if ( (! LG.lglever_state()) && LG.air_state() && LG.lg_altndn_state()) {
     fsm.trigger(GEAR_DOWN_NORM);
   }
-  if (! LG.lg_altndn_state()) {
+  if (! LG.lg_altndn_state() && LG.air_state()) {
     fsm.trigger(GEAR_DOWN_ALTN);
   }
+
+  LG.update();  // gets/stores all switch states
 
   /* Update FSM timer-based transitions */
   fsm.check_timer();
@@ -398,7 +396,10 @@ void loop() {
   /* The global variable 'address' is manipulated in the various states.
      Here in loop() it controls the LEDs and solenoid.
   */
-  update_peripherals(address);
+  if (address != prev_address) {
+    update_peripherals(address);
+    prev_address = address;
+  }
 
   /* Update landing gear up/down timers. */
   mlg_left.update();

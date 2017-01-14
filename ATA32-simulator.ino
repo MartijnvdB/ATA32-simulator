@@ -201,7 +201,7 @@ void on_altn_transit_down_enter() {
   mlg_right.after(random(GEAR_DN_TIME_DIFF_FACTOR * GEAR_ALTNDN_TIME_MSEC, GEAR_ALTNDN_TIME_MSEC), show_mlg_right_is_dn );
   nlg.after(random(GEAR_DN_TIME_DIFF_FACTOR * GEAR_ALTNDN_TIME_MSEC, GEAR_ALTNDN_TIME_MSEC), show_nlg_is_dn );
 }
-void on_altn_transit_down_exit() {}
+void on_altn_transit_down_exit() {  }
 
 
 /*
@@ -338,7 +338,7 @@ void setup() {
   // gear down
   fsm.add_transition(&state_up, &state_unlock_uplock, GEAR_DOWN_NORM, NULL); //&on_trans_gear_up);
   fsm.add_timed_transition(&state_unlock_uplock, &state_transit_dn, LOCK_UNLOCK_TIME_MSEC, NULL);
-  fsm.add_timed_transition(&state_transit_dn, &state_dnlocked_flt, GEAR_EXTEND_TIME_MSEC, NULL); //&on_trans_gear_up);
+  fsm.add_timed_transition(&state_transit_dn, &state_dnlocked_flt, GEAR_EXTEND_TIME_MSEC, NULL);
 
   // gear up while in transit down
   fsm.add_transition(&state_unlock_uplock, &state_up, GEAR_UP, NULL); // while unlocking
@@ -357,7 +357,9 @@ void setup() {
   // alternate down
   fsm.add_transition(&state_up, &state_altn_unlock_uplock, GEAR_DOWN_ALTN, NULL);
   fsm.add_timed_transition(&state_altn_unlock_uplock, &state_altn_transit_down, LOCK_UNLOCK_TIME_MSEC, NULL);
-  fsm.add_timed_transition(&state_altn_transit_down, &state_dnlocked_flt, GEAR_EXTEND_TIME_MSEC * 1000, NULL);
+  // Use a dummy time of 1 msec: the timers in on_altn_transit_down_enter take care of extend time simulation.
+  // Having a GEAR_EXTEND_TIME_MSEC in hear would effectively double the extend time.
+  fsm.add_timed_transition(&state_altn_transit_down, &state_dnlocked_flt, 1, NULL); //  
 
   address = B00000000;  // all LEDs and solenoid OFF
 
